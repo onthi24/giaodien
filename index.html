@@ -16,7 +16,7 @@
 
         // Cấu hình tài khoản GitHub cố định
         const GH_OWNER = 'onthi24';      
-        const GH_REPO = 'giaodien'; // ĐÃ SỬA: Khớp chính xác với Repository thực tế của bạn
+        const GH_REPO = 'giaodien'; // Khớp chính xác với Repository thực tế của bạn
     </script>
     <style>
         :root {
@@ -82,8 +82,8 @@
         .header { display: flex; justify-content: space-between; align-items: center; max-width: 1100px; margin: 0 auto 25px auto; width: 100%; }
         .logo-wrap { display: flex; align-items: center; gap: 10px; }
         .logo-text { font-size: 36px; font-weight: 800; line-height: 1; text-transform: uppercase; }
-        #subject-text { color: var(--primary-green); }
-        #grade-text { color: var(--image-orange); margin-left: 5px; }
+        #subject-text { color: var(--primary-green); font-weight: bold; }
+        #grade-text { color: var(--image-orange); margin-left: 5px; font-weight: bold; }
 
         .search-box input {
             width: 270px; padding: 10px 16px; border-radius: 25px; border: 1px solid #c7d2d8;
@@ -346,6 +346,7 @@
             }
         }
 
+        // THUẬT TOÁN MỚI ĐÃ ĐƯỢC TỐI ƯU THEO Ý BẠN: GOM BÀI THEO CHƯƠNG KHI CÓ CỘT C TRỐNG
         function parseGoogleSheetToPackage(rawText) {
             const data = JSON.parse(rawText.substr(47).slice(0, -2));
             const rows = data.table.rows;
@@ -360,21 +361,36 @@
             }
             
             let columnsData = { 1: {}, 2: {} };
+            
             rows.forEach((row, rowIndex) => {
                 if (!row.c) return;
                 if (rowIndex === 0 && !row.c[0]) return;
+                
                 const colNum = (row.c[0] && row.c[0].v) ? parseInt(row.c[0].v) : 1;
                 const chuongName = (row.c[1] && row.c[1].v) ? row.c[1].v.toString().trim() : '';
                 const baiName = (row.c[2] && row.c[2].v) ? row.c[2].v.toString().trim() : '';
                 const linkUrl = (row.c[3] && row.c[3].v) ? row.c[3].v.toString().trim() : '#';
                 const customColor = (row.c[4] && row.c[4].v) ? row.c[4].v.toString().trim() : '';
+                
                 if (chuongName) {
                     if (!columnsData[colNum]) columnsData[colNum] = {};
+                    
+                    // Khởi tạo Chương nếu chưa từng tồn tại trong hệ thống
                     if (!columnsData[colNum][chuongName]) {
                         columnsData[colNum][chuongName] = { color: '', items: [] };
                     }
-                    if (baiName) columnsData[colNum][chuongName].items.push({ name: baiName, link: linkUrl, color: customColor });
-                    else if (customColor) columnsData[colNum][chuongName].color = customColor;
+                    
+                    // NẾU CÓ TÊN BÀI (CỘT C KHÔNG TRỐNG): Tiến hành nhét bài vào đúng chương lớn
+                    if (baiName) {
+                        columnsData[colNum][chuongName].items.push({ 
+                            name: baiName, 
+                            link: linkUrl, 
+                            color: customColor 
+                        });
+                    } else if (customColor) {
+                        // Nếu cột C trống nhưng có mã màu ở cột E, áp dụng màu đó cho tên Chương lớn
+                        columnsData[colNum][chuongName].color = customColor;
+                    }
                 }
             });
             
@@ -417,12 +433,10 @@
                     status.innerText = "⏳ Đang đóng gói dữ liệu JSON...";
                     
                     const fileSha = fileData ? fileData.sha : null; 
-                    
                     const cleanJsonData = { meta: freshPackage.meta, columns: freshPackage.columns };
                     const jsonString = JSON.stringify(cleanJsonData, null, 2);
                     
                     const newContentBase64 = btoa(unescape(encodeURIComponent(jsonString)));
-                    
                     status.innerText = "⏳ Đang cập nhật file dữ liệu lên GitHub...";
                     
                     return fetch(githubApiUrl, {
