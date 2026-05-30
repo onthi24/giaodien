@@ -233,21 +233,7 @@
     <div class="copyright">© 2026 ONTHI24</div>
 
     <script>
-        let STATIC_DATA_STORE = null;
-
-        function openMobileMenu(e) { e.stopPropagation(); document.getElementById('mobileNavMenu').classList.add('open'); }
-        function closeMobileMenu(e) { e.stopPropagation(); document.getElementById('mobileNavMenu').classList.remove('open'); }
-        function handleMobileClick(wrapper, event) { if (window.innerWidth <= 768) { if (event.target.tagName === 'A' && event.target.getAttribute('href') !== '#') return; event.preventDefault(); event.stopPropagation(); wrapper.classList.toggle('active-mobile'); } }
-
-        function toggleMenu(id) {
-            let targetMenu = document.getElementById(id);
-            if (targetMenu) {
-                const currentDisplay = window.getComputedStyle(targetMenu).display;
-                document.querySelectorAll('.container .dropdown').forEach(menu => { menu.style.display = 'none'; });
-                if (currentDisplay === "none") { targetMenu.style.display = "block"; }
-            }
-        }
-
+        // SỬA ĐỔI LỚN: Đọc file trực tiếp bằng API GitHub công khai, loại bỏ độ trễ của GitHub Pages
         window.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const currentMon = urlParams.get('mon') || 'toan12'; 
@@ -257,26 +243,29 @@
             else if (currentMon.startsWith('toan')) document.getElementById('menu-thcs').classList.add('active');
             else if (currentMon.startsWith('vatli')) document.getElementById('menu-vatli').classList.add('active');
 
-            // BỔ SUNG: Thay đổi đường dẫn tải raw để chặn triệt để cache của GitHub bằng chuỗi thời gian thực
-            const DATA_URL = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/main/data/${currentMon}.json?timestamp=${Date.now()}`;
+            // Gọi thẳng API lấy nội dung file gốc thời gian thực
+            const GITHUB_PUBLIC_API = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/data/${currentMon}.json?t=${Date.now()}`;
 
-            fetch(DATA_URL)
+            fetch(GITHUB_PUBLIC_API)
             .then(res => {
-                if (!res.ok) throw new Error("Chưa có file dữ liệu cấu hình trên hệ thống!");
+                if (!res.ok) throw new Error("File trống hoặc chưa từng được tạo lập!");
                 return res.json();
             })
-            .then(jsonData => {
-                STATIC_DATA_STORE = jsonData;
-                document.getElementById('subject-text').innerText = STATIC_DATA_STORE.meta.subject || "Môn";
-                document.getElementById('grade-text').innerText = STATIC_DATA_STORE.meta.grade || "Học";
-                document.getElementById('page-title').innerText = STATIC_DATA_STORE.meta.title || "ONTHI24 Education";
+            .then(fileData => {
+                // Giải mã Base64 chuẩn UTF-8 chống lỗi font chữ tiếng Việt
+                const jsonText = decodeURIComponent(escape(atob(fileData.content.replace(/\s/g, ''))));
+                const jsonData = JSON.parse(jsonText);
                 
-                renderColumn(1, STATIC_DATA_STORE.columns[1]);
-                renderColumn(2, STATIC_DATA_STORE.columns[2]);
+                document.getElementById('subject-text').innerText = jsonData.meta.subject || "Môn";
+                document.getElementById('grade-text').innerText = jsonData.meta.grade || "Học";
+                document.getElementById('page-title').innerText = jsonData.meta.title || "ONTHI24 Education";
+                
+                renderColumn(1, jsonData.columns[1]);
+                renderColumn(2, jsonData.columns[2]);
             })
             .catch(err => {
                 console.warn(err);
-                document.getElementById('column-1').innerHTML = `<div class="column-header bg-green">1. Bài giảng</div><div class="loading-overlay" style="color:orange; font-weight:bold;">🛠️ TRANG MỚI: Vui lòng gõ mật khẩu Quản trị để Tạo dữ liệu đồng bộ lần đầu!</div>`;
+                document.getElementById('column-1').innerHTML = `<div class="column-header bg-green">1. Bài giảng</div><div class="loading-overlay" style="color:orange; font-weight:bold;">🛠️ TRANG MỚI: Vui lòng gõ mật khẩu Quản trị để Đồng bộ dữ liệu lần đầu tiên!</div>`;
                 document.getElementById('column-2').innerHTML = `<div class="column-header bg-orange">2. Đề cương &amp; Đề thi</div><div class="loading-overlay">Chờ dữ liệu...</div>`;
             });
 
@@ -349,7 +338,7 @@
             }
         }
 
-        // TỐI ƯU TOÀN DIỆN: Đọc cấu hình dòng 1 và lọc chuẩn danh sách bài tập từ dòng 2 trở đi
+        // THUẬT TOÁN ĐÃ SỬA: NHẬN DIỆN CHƯƠNG TỪ DÒNG TRỐNG CỘT C, LỌC BỎ DÒNG 1
         function parseGoogleSheetToPackage(rawText) {
             const data = JSON.parse(rawText.substr(47).slice(0, -2));
             const rows = data.table.rows;
@@ -364,31 +353,38 @@
             }
             
             let columnsData = { 1: {}, 2: {} };
+            let activeChươngMap = { 1: '', 2: '' }; // Lưu giữ chương đang chạy hiện tại của cột 1 và cột 2
             
             rows.forEach((row, rowIndex) => {
                 if (!row.c || rowIndex === 0) return; 
                 
                 const colNum = (row.c[0] && row.c[0].v) ? parseInt(row.c[0].v) : 1;
-                const chuongName = (row.c[1] && row.c[1].v) ? row.c[1].v.toString().trim() : '';
+                const rawChuong = (row.c[1] && row.c[1].v) ? row.c[1].v.toString().trim() : '';
                 const baiName = (row.c[2] && row.c[2].v) ? row.c[2].v.toString().trim() : '';
                 const linkUrl = (row.c[3] && row.c[3].v) ? row.c[3].v.toString().trim() : '#';
                 const customColor = (row.c[4] && row.c[4].v) ? row.c[4].v.toString().trim() : '';
                 
-                if (chuongName) {
-                    if (!columnsData[colNum]) columnsData[colNum] = {};
-                    
-                    if (!columnsData[colNum][chuongName]) {
-                        columnsData[colNum][chuongName] = { color: '', items: [] };
-                    }
-                    
-                    if (baiName) {
-                        columnsData[colNum][chuongName].items.push({ 
-                            name: baiName, 
-                            link: linkUrl, 
-                            color: customColor 
+                // Nếu dòng này có điền tên ở cột B
+                if (rawChuong) {
+                    // Nếu cột C trống -> Đây chính là hàng khởi tạo Tên Chương mới theo tư duy của bạn
+                    if (!baiName) {
+                        activeChươngMap[colNum] = rawChuong; // Đánh dấu chương hiện tại đang quét
+                        if (!columnsData[colNum]) columnsData[colNum] = {};
+                        if (!columnsData[colNum][rawChuong]) {
+                            columnsData[colNum][rawChuong] = { color: customColor, items: [] };
+                        }
+                    } else {
+                        // Nếu cột C có tên bài -> Nhét bài này vào chương lớn đang active
+                        let currentActiveChuong = activeChươngMap[colNum] || rawChuong;
+                        if (!columnsData[colNum]) columnsData[colNum] = {};
+                        if (!columnsData[colNum][currentActiveChuong]) {
+                            columnsData[colNum][currentActiveChuong] = { color: '', items: [] };
+                        }
+                        columnsData[colNum][currentActiveChuong].items.push({
+                            name: baiName,
+                            link: linkUrl,
+                            color: customColor
                         });
-                    } else if (customColor) {
-                        columnsData[colNum][chuongName].color = customColor;
                     }
                 }
             });
@@ -409,7 +405,6 @@
             status.innerText = "⏳ Đang kết nối Sheet...";
             status.style.color = "orange";
 
-            // Gửi truy vấn bỏ cache cho sheet
             const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_TITLE)}&range=${SHEET_RANGE}&t=${Date.now()}`;
 
             fetch(SHEET_URL)
@@ -447,7 +442,7 @@
                             'Accept': 'application/vnd.github.v3+json'
                         },
                         body: JSON.stringify({
-                            message: `⚡ Auto-Update Data Object: ${ghPathFromSheet}`,
+                            message: `⚡ Auto-Update Realtime Data Object: ${ghPathFromSheet}`,
                             content: newContentBase64,
                             sha: fileSha
                         })
@@ -463,6 +458,7 @@
                 status.style.color = "green";
                 document.getElementById('gh-token-input').value = ""; 
                 
+                // Ép làm mới cứng sau 1 giây
                 setTimeout(() => {
                     location.reload(); 
                 }, 1000);
