@@ -16,7 +16,7 @@
 
         // Cấu hình tài khoản GitHub cố định
         const GH_OWNER = 'onthi24';      
-        const GH_REPO = 'quanlyonthi24'; 
+        const GH_REPO = 'giaodien'; // ĐÃ SỬA: Khớp chính xác với Repository thực tế của bạn
     </script>
     <style>
         :root {
@@ -233,7 +233,6 @@
     <div class="copyright">© 2026 ONTHI24</div>
 
     <script>
-        // BIẾN TOÀN CỤC CHỨA DỮ LIỆU ĐƯỢC LOAD TỪ FILE JSON RIÊNG BIỆT
         let STATIC_DATA_STORE = null;
 
         function openMobileMenu(e) { e.stopPropagation(); document.getElementById('mobileNavMenu').classList.add('open'); }
@@ -249,19 +248,15 @@
             }
         }
 
-        // TỰ ĐỘNG ĐỌC THAM SỐ URL ĐỂ TẢI FILE DỮ LIỆU JSON TƯƠNG ỨNG
         window.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
-            const currentMon = urlParams.get('mon') || 'toan12'; // Mặc định nạp toán 12 nếu link trơn
+            const currentMon = urlParams.get('mon') || 'toan12'; 
 
-            // Đánh dấu nút active trên thanh điều hướng menu
             document.querySelectorAll('.nav-menu .nav-item').forEach(el => el.classList.remove('active'));
             if (currentMon.startsWith('toan1')) document.getElementById('menu-thpt').classList.add('active');
             else if (currentMon.startsWith('toan')) document.getElementById('menu-thcs').classList.add('active');
             else if (currentMon.startsWith('vatli')) document.getElementById('menu-vatli').classList.add('active');
 
-            // Gọi API lấy file JSON dữ liệu tĩnh lưu trên GitHub của môn đó
-            // Thêm tham số ?cb= để chống trình duyệt lưu bộ nhớ đệm (Cache) dữ liệu cũ
             const DATA_URL = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/main/data/${currentMon}.json?cb=${Date.now()}`;
 
             fetch(DATA_URL)
@@ -390,7 +385,6 @@
             };
         }
 
-        // HÀM ĐỒNG BỘ: CHỈ ĐẨY DỮ LIỆU MỚI ĐÈ LÊN FILE .JSON RIÊNG BIỆT TRÊN GITHUB
         function startAutoSyncToGitHub() {
             const token = document.getElementById('gh-token-input').value.trim();
             const status = document.getElementById('update-status');
@@ -406,7 +400,7 @@
             .then(res => { if(!res.ok) throw new Error("Lỗi kết nối Sheet!"); return res.text(); })
             .then(rep => {
                 const freshPackage = parseGoogleSheetToPackage(rep);
-                const ghPathFromSheet = freshPackage.gitPath; // Đọc ô I1 từ sheet (ví dụ: data/toan12.json)
+                const ghPathFromSheet = freshPackage.gitPath; 
                 
                 status.innerText = "⏳ Đang kết nối GitHub...";
                 const githubApiUrl = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${ghPathFromSheet}`;
@@ -416,16 +410,14 @@
                 })
                 .then(res => {
                     if (res.status === 401) throw new Error("Mã Token sai hoặc hết hạn!");
-                    // Nếu chưa có file json trên repo, trả về null để tạo file mới tinh
                     if (res.status === 404) return null; 
                     return res.json();
                 })
                 .then(fileData => {
                     status.innerText = "⏳ Đang đóng gói dữ liệu JSON...";
                     
-                    const fileSha = fileData ? fileData.sha : null; // Nếu file đã có thì lấy SHA để đẩy đè
+                    const fileSha = fileData ? fileData.sha : null; 
                     
-                    // Chỉ lấy phần dữ liệu thuần bài học để lưu thành file JSON
                     const cleanJsonData = { meta: freshPackage.meta, columns: freshPackage.columns };
                     const jsonString = JSON.stringify(cleanJsonData, null, 2);
                     
