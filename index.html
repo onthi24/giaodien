@@ -346,13 +346,14 @@
             }
         }
 
-        // THUẬT TOÁN MỚI ĐÃ ĐƯỢC TỐI ƯU THEO Ý BẠN: GOM BÀI THEO CHƯƠNG KHI CÓ CỘT C TRỐNG
+        // THUẬT TOÁN ĐÃ ĐƯỢC FIX LỖI: LOẠI BỎ HÀNG SỐ 1 KHI PHÂN TÍCH CÂY BÀI HỌC
         function parseGoogleSheetToPackage(rawText) {
             const data = JSON.parse(rawText.substr(47).slice(0, -2));
             const rows = data.table.rows;
             
             let subjectVal = 'Toán', gradeVal = '10', titleVal = 'Toán 10', targetPath = 'data/toan10.json';
             
+            // Đọc cấu hình từ hàng số 1 (hàng 0)
             if (rows[0] && rows[0].c) {
                 if (rows[0].c[5] && rows[0].c[5].v) subjectVal = rows[0].c[5].v.toString().trim(); 
                 if (rows[0].c[6] && rows[0].c[6].v) gradeVal = rows[0].c[6].v.toString().trim();    
@@ -364,7 +365,8 @@
             
             rows.forEach((row, rowIndex) => {
                 if (!row.c) return;
-                if (rowIndex === 0 && !row.c[0]) return;
+                // SỬA LỖI QUAN TRỌNG: Bỏ qua hoàn toàn dữ liệu bài học ở hàng số 1 (rowIndex === 0)
+                if (rowIndex === 0) return; 
                 
                 const colNum = (row.c[0] && row.c[0].v) ? parseInt(row.c[0].v) : 1;
                 const chuongName = (row.c[1] && row.c[1].v) ? row.c[1].v.toString().trim() : '';
@@ -375,12 +377,10 @@
                 if (chuongName) {
                     if (!columnsData[colNum]) columnsData[colNum] = {};
                     
-                    // Khởi tạo Chương nếu chưa từng tồn tại trong hệ thống
                     if (!columnsData[colNum][chuongName]) {
                         columnsData[colNum][chuongName] = { color: '', items: [] };
                     }
                     
-                    // NẾU CÓ TÊN BÀI (CỘT C KHÔNG TRỐNG): Tiến hành nhét bài vào đúng chương lớn
                     if (baiName) {
                         columnsData[colNum][chuongName].items.push({ 
                             name: baiName, 
@@ -388,7 +388,6 @@
                             color: customColor 
                         });
                     } else if (customColor) {
-                        // Nếu cột C trống nhưng có mã màu ở cột E, áp dụng màu đó cho tên Chương lớn
                         columnsData[colNum][chuongName].color = customColor;
                     }
                 }
