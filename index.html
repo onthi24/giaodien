@@ -198,7 +198,7 @@
             </h1>
         </div>
         <div class="search-box">
-            <input type="text" id="search-input" placeholder="Tìm qua Google..." oninput="checkAdminAuth(this.value)">
+            <input type="text" id="search-input" placeholder="Tìm qua Google..." oninput="checkAdminAuth(this.value)" onkeydown="if(event.key==='Enter') checkAdminAuth(this.value)">
         </div>
     </div>
 
@@ -233,6 +233,21 @@
     <div class="copyright">© 2026 ONTHI24</div>
 
     <script>
+        let STATIC_DATA_STORE = null;
+
+        function openMobileMenu(e) { e.stopPropagation(); document.getElementById('mobileNavMenu').classList.add('open'); }
+        function closeMobileMenu(e) { e.stopPropagation(); document.getElementById('mobileNavMenu').classList.remove('open'); }
+        function handleMobileClick(wrapper, event) { if (window.innerWidth <= 768) { if (event.target.tagName === 'A' && event.target.getAttribute('href') !== '#') return; event.preventDefault(); event.stopPropagation(); wrapper.classList.toggle('active-mobile'); } }
+
+        function toggleMenu(id) {
+            let targetMenu = document.getElementById(id);
+            if (targetMenu) {
+                const currentDisplay = window.getComputedStyle(targetMenu).display;
+                document.querySelectorAll('.container .dropdown').forEach(menu => { menu.style.display = 'none'; });
+                if (currentDisplay === "none") { targetMenu.style.display = "block"; }
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
             const currentMon = urlParams.get('mon') || 'toan12'; 
@@ -280,7 +295,6 @@
             const headerEl = columnEl.querySelector('.column-header');
             columnEl.innerHTML = headerEl ? headerEl.outerHTML : '';
 
-            // Kiểm tra mảng chương sạch
             if (!chapters || Object.keys(chapters).length === 0) {
                 const emptyNotify = document.createElement('div');
                 emptyNotify.className = 'loading-overlay';
@@ -291,7 +305,6 @@
 
             let index = 0;
             for (let chuongName in chapters) {
-                // Bảo vệ: Bỏ qua nếu tên chương bị lỗi chuỗi trống rỗng do quét dòng thừa
                 if (!chuongName.trim()) continue; 
                 
                 index++;
@@ -339,7 +352,6 @@
             }
         }
 
-        // THUẬT TOÁN SỬA LỖI CHÍ CHẾT: Loại bỏ tuyệt đối dòng trống cuối Sheet phá cấu trúc mảng
         function parseGoogleSheetToPackage(rawText) {
             const data = JSON.parse(rawText.substr(47).slice(0, -2));
             const rows = data.table.rows;
@@ -347,4 +359,127 @@
             let subjectVal = 'Toán', gradeVal = '10', titleVal = 'Toán 10', targetPath = 'data/toan10.json';
             
             if (rows[0] && rows[0].c) {
-                if (rows[0].c[5] && rows[0].c[5].v) subjectVal = rows[0].c
+                if (rows[0].c[5] && rows[0].c[5].v) subjectVal = rows[0].c[5].v.toString().trim(); 
+                if (rows[0].c[6] && rows[0].c[6].v) gradeVal = rows[0].c[6].v.toString().trim();    
+                if (rows[0].c[7] && rows[0].c[7].v) titleVal = rows[0].c[7].v.toString().trim();    
+                if (rows[0].c[8] && rows[0].c[8].v) targetPath = rows[0].c[8].v.toString().trim();  
+            }
+            
+            let columnsData = { 1: {}, 2: {} };
+            let activeChươngMap = { 1: '', 2: '' }; 
+            
+            rows.forEach((row, rowIndex) => {
+                if (!row.c || rowIndex === 0) return; 
+                if (!row.c[0] || !row.c[1] || row.c[0].v === null || row.c[1].v === null) return;
+                
+                const colNum = (row.c[0] && row.c[0].v) ? parseInt(row.c[0].v) : 1;
+                const rawChuong = (row.c[1] && row.c[1].v) ? row.c[1].v.toString().trim() : '';
+                const baiName = (row.c[2] && row.c[2].v) ? row.c[2].v.toString().trim() : '';
+                const linkUrl = (row.c[3] && row.c[3].v) ? row.c[3].v.toString().trim() : '#';
+                const customColor = (row.c[4] && row.c[4].v) ? row.c[4].v.toString().trim() : '';
+                
+                if (!rawChuong) return;
+                if (!columnsData[colNum]) columnsData[colNum] = {};
+                
+                if (!baiName) {
+                    activeChươngMap[colNum] = rawChuong; 
+                    if (!columnsData[colNum][rawChuong]) {
+                        columnsData[colNum][rawChuong] = { color: customColor, items: [] };
+                    } else if (customColor) {
+                        columnsData[colNum][rawChuong].color = customColor;
+                    }
+                } else {
+                    let currentActiveChuong = activeChươngMap[colNum] || rawChuong;
+                    if (!columnsData[colNum][currentActiveChuong]) {
+                        columnsData[colNum][currentActiveChuong] = { color: '', items: [] };
+                    }
+                    columnsData[colNum][currentActiveChuong].items.push({
+                        name: baiName,
+                        link: linkUrl,
+                        color: customColor
+                    });
+                }
+            });
+            
+            return { 
+                meta: { subject: subjectVal, grade: gradeVal, title: titleVal }, 
+                columns: columnsData,
+                gitPath: targetPath 
+            };
+        }
+
+        function startAutoSyncToGitHub() {
+            const token = document.getElementById('gh-token-input').value.trim();
+            const status = document.getElementById('update-status');
+            
+            if(!token) { alert("Vui lòng nhập GitHub Token!"); return; }
+            
+            status.innerText = "⏳ Đang kết nối Sheet...";
+            status.style.color = "orange";
+
+            const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_TITLE)}&range=${SHEET_RANGE}&t=${Date.now()}`;
+
+            fetch(SHEET_URL)
+            .then(res => { if(!res.ok) throw new Error("Lỗi kết nối Sheet!"); return res.text(); })
+            .then(rep => {
+                const freshPackage = parseGoogleSheetToPackage(rep);
+                const ghPathFromSheet = freshPackage.gitPath; 
+                
+                status.innerText = "⏳ Đang kết nối GitHub...";
+                const githubApiUrl = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${ghPathFromSheet}`;
+                
+                return fetch(githubApiUrl, {
+                    headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+                })
+                .then(res => {
+                    if (res.status === 401) throw new Error("Mã Token sai hoặc hết hạn!");
+                    if (res.status === 404) return null; 
+                    return res.json();
+                })
+                .then(fileData => {
+                    status.innerText = "⏳ Đang đóng gói dữ liệu JSON...";
+                    
+                    const fileSha = fileData ? fileData.sha : null; 
+                    const cleanJsonData = { meta: freshPackage.meta, columns: freshPackage.columns };
+                    const jsonString = JSON.stringify(cleanJsonData, null, 2);
+                    
+                    const newContentBase64 = btoa(unescape(encodeURIComponent(jsonString)));
+                    status.innerText = "⏳ Đang cập nhật file dữ liệu lên GitHub...";
+                    
+                    return fetch(githubApiUrl, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `token ${token}`,
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/vnd.github.v3+json'
+                        },
+                        body: JSON.stringify({
+                            message: `⚡ Fixed Auto-Sync Object Tree: ${ghPathFromSheet}`,
+                            content: newContentBase64,
+                            sha: fileSha
+                        })
+                    });
+                });
+            })
+            .then(res => {
+                if(!res.ok) throw new Error("Đồng bộ GitHub thất bại!");
+                return res.json();
+            })
+            .then(() => {
+                status.innerText = "✅ THÀNH CÔNG!";
+                status.style.color = "green";
+                document.getElementById('gh-token-input').value = ""; 
+                
+                setTimeout(() => {
+                    location.reload(); 
+                }, 1000);
+            })
+            .catch(err => {
+                console.error(err);
+                status.innerText = "❌ Lỗi: " + err.message;
+                status.style.color = "red";
+            });
+        }
+    </script>
+</body>
+</html>
