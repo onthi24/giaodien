@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -6,73 +7,84 @@
     <title>ONTHI24 - Hệ thống học tập</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* GIỮ NGUYÊN CSS CŨ CỦA BẠN ĐỂ ĐẢM BẢO GIAO DIỆN */
-        :root { --primary-green: #1a4d2e; --primary-blue: #78281f; --primary-orange: #B5782A; }
+        :root { --primary-green: #1abc9c; --primary-blue: #3498db; --primary-orange: #e67e22; }
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #fdfdfd; margin: 0; padding: 20px; }
+        .top-navbar { max-width: 1100px; margin: 0 auto 10px auto; width: 100%; background-color: #f1f4f6; padding: 10px 15px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .logo-box { display: flex; align-items: center; }
+        .logo-img { height: 45px; object-fit: contain; }
+        .header-main { display: flex; justify-content: space-between; align-items: center; max-width: 1100px; margin: 0 auto 25px auto; width: 100%; }
+        .main-title { font-size: 38px; font-weight: 800; color: #134e4a; margin: 0; }
         .container { display: flex; gap: 20px; max-width: 1100px; margin: 0 auto; width: 100%; flex-wrap: wrap; }
         .column { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 12px; }
         .column-header { padding: 14px 18px; border-radius: 10px; color: white; font-weight: bold; font-size: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .bg-green { background: #1a4d2e; }
+        .bg-blue { background: #78281f; }
+        .bg-orange { background: #B5782A; }
         .item-card { background: #fff; padding: 14px 18px; border-radius: 16px; border: 1.5px solid #b5b5b5; text-decoration: none; display: block; box-shadow: 0 3px 8px rgba(0,0,0,0.08); transition: 0.2s; color: #222; }
         .item-card:hover { background-color: #f8fafc; border-color: #78281f; }
+        .item-card h2 { margin: 0; font-weight: 700; font-size: 18px; }
+        .footer-action { margin: 40px auto 20px auto; max-width: 1100px; width: 100%; display: flex; gap: 30px; align-items: center; }
+        .btn-register { background: #b5782a; color: #fff; padding: 14px 35px; border-radius: 25px; border: 1px solid #8e6f3e; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div class="container" id="main-container">
-        <div style="text-align:center; width:100%; padding: 50px;">Đang tải dữ liệu từ hệ thống...</div>
+    <div class="top-navbar">
+        <div class="logo-box">
+            <img src="https://raw.githubusercontent.com/onthi24/quanlyonthi24/main/LOGO24.TRONG.png" alt="ONTHI24 LOGO" class="logo-img">
+        </div>
+    </div>
+
+    <div class="header-main">
+        <h1 class="main-title">Trang chủ</h1>
+    </div>
+
+    <div class="container" id="dynamic-container">
+        </div>
+
+    <div class="footer-action">
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSdX0G3eI0fttdhqXR_YAexVfp2LlgFBJTWZUpS4gGjICfkZ_Q/viewform" target="_blank"><button class="btn-register">ĐĂNG KÍ TƯ VẤN</button></a>
     </div>
 
     <script>
         const SHEET_ID = '1EGg-F339DzjVtnENu_LBYXq0QBO1z0fK4232aKpMLxs';
-        
-        async function loadData() {
+        const colors = ['bg-green', 'bg-blue', 'bg-orange'];
+
+        async function fetchSheetData() {
             const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-            try {
-                const response = await fetch(url);
-                const text = await response.text();
-                const json = JSON.parse(text.substring(47, text.length - 2));
-                const rows = json.table.rows;
+            const res = await fetch(url);
+            const text = await res.text();
+            const json = JSON.parse(text.substring(47, text.length - 2));
+            
+            const container = document.getElementById('dynamic-container');
+            let groups = {};
 
-                const container = document.getElementById('main-container');
-                container.innerHTML = ''; // Xóa chữ "Đang tải"
+            // Gom nhóm dữ liệu theo cột A
+            json.table.rows.forEach(row => {
+                const colName = row.c[0]?.v || "Khác";
+                const itemName = row.c[1]?.v || "";
+                const itemLink = row.c[2]?.v || "#";
+                if (!groups[colName]) groups[colName] = [];
+                if (itemName) groups[colName].push({ name: itemName, link: itemLink });
+            });
 
-                let groups = {};
-
-                // Xử lý dữ liệu từ Sheet
-                rows.forEach(row => {
-                    const groupName = row.c[0]?.v || "Khác";
-                    const itemName = row.c[1]?.v || "";
-                    const itemLink = row.c[2]?.v || "#";
-
-                    if (!groups[groupName]) groups[groupName] = [];
-                    if (itemName) groups[groupName].push({ name: itemName, link: itemLink });
-                });
-
-                // Render ra HTML
-                let colorIndex = 0;
-                const colors = ['bg-green', 'bg-blue', 'bg-orange'];
+            // Vẽ giao diện
+            let i = 0;
+            for (let group in groups) {
+                const col = document.createElement('div');
+                col.className = 'column';
+                col.innerHTML = `<div class="column-header ${colors[i % 3]}">${group}</div>`;
                 
-                for (let group in groups) {
-                    const col = document.createElement('div');
-                    col.className = 'column';
-                    
-                    col.innerHTML = `<div class="column-header ${colors[colorIndex % 3]}">${group}</div>`;
-                    
-                    groups[group].forEach(item => {
-                        col.innerHTML += `<a class="item-card" href="${item.link}"><h2>${item.name}</h2></a>`;
-                    });
-                    
-                    container.appendChild(col);
-                    colorIndex++;
-                }
-            } catch (err) {
-                console.error("Lỗi tải dữ liệu:", err);
-                document.getElementById('main-container').innerHTML = "Lỗi tải dữ liệu. Vui lòng kiểm tra quyền truy cập của Google Sheet.";
+                groups[group].forEach(item => {
+                    col.innerHTML += `<a class="item-card" href="${item.link}"><h2>${item.name}</h2></a>`;
+                });
+                
+                container.appendChild(col);
+                i++;
             }
         }
-
-        window.onload = loadData;
+        fetchSheetData();
     </script>
 </body>
 </html>
